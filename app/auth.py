@@ -18,12 +18,14 @@ class CSRFMiddleware:
             cookie_token = req.get_cookie("CSRF-Token")
             form_token = req.media.get("CSRF-Token")
             if form_token and form_token == cookie_token:
-                if self.config.redis_client.get(form_token) == b'valid':
+                if self.config.redis_client.get("CSRF:" + form_token) == b'valid':
                     req.context["CSRF-Valid"] = True
 
-        cookie_token = generate_token()
-        resp.set_cookie("CSRF-Token", cookie_token, max_age=60 * 60 * 24 * 14, secure=True, http_only=True, same_site="Lax")
-        self.config.redis_client.set("CSRF:" + cookie_token, 'valid', ex=60 * 60)
+        if not req.context["CSRF-Valid"]:
+            cookie_token = generate_token()
+            resp.set_cookie("CSRF-Token", cookie_token, max_age=60 * 60 * 24 * 14, secure=True, http_only=True, same_site="Lax")
+            self.config.redis_client.set("CSRF:" + cookie_token, 'valid', ex=60 * 60 * 24 * 14)
+            #Possibly raise the exception here?
 
 
 
