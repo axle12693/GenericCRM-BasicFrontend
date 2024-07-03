@@ -18,7 +18,7 @@ class CSRFMiddleware:
             cookie_token = req.get_cookie("CSRF-Token")
             form_token = req.media.get("CSRF-Token") if req.media else None
             if form_token and form_token == cookie_token:
-                if self.config.redis_client.get("CSRF:" + form_token) == b'valid':
+                if self.config.redis_client.get("CSRF:" + form_token) == 'valid':
                     req.context["CSRF-Valid"] = True
 
         if not req.context["CSRF-Valid"]:
