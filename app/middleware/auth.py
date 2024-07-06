@@ -12,6 +12,12 @@ class CSRFMiddleware:
     def __init__(self, config):
         self.config = config
 
+    def set_csrf_token(self, resp):
+        cookie_token = generate_token()
+        resp.set_cookie("CSRF-Token", cookie_token, max_age=60 * 60 * 24 * 14, secure=True, http_only=True, same_site="Lax")
+        self.config.redis_client.set("CSRF:" + cookie_token, 'valid', ex=60 * 60 * 24 * 14)
+        return cookie_token
+
     def process_request(self, req, resp):
         req.context['CSRF-Valid'] = False
         if req.method in ('POST', 'PUT', 'DELETE', 'PATCH'):
@@ -21,11 +27,12 @@ class CSRFMiddleware:
                 if self.config.redis_client.get("CSRF:" + form_token) == 'valid':
                     req.context["CSRF-Valid"] = True
 
-        if not req.context["CSRF-Valid"]:
-            cookie_token = generate_token()
-            resp.set_cookie("CSRF-Token", cookie_token, max_age=60 * 60 * 24 * 14, secure=True, http_only=True, same_site="Lax")
-            self.config.redis_client.set("CSRF:" + cookie_token, 'valid', ex=60 * 60 * 24 * 14)
-            raise falcon.HTTPForbidden(description='Invalid or missing CSRF token.')
+            if not req.context["CSRF-Valid"]:
+                self.set_csrf_token(resp)
+                raise falcon.HTTPForbidden(description='Invalid or missing CSRF token.')
+        else:
+            self.set_csrf_token(resp)
+
 
 
 
