@@ -16,19 +16,22 @@ class CSRFMiddleware:
         self.config = config
 
     def set_csrf_token(self, req, resp):
-        session_id = req.context["session_id"]
+        session_id = req.context.get("session_id")
         cookie_token = generate_token()
         resp.set_cookie("CSRF-Token", cookie_token, max_age=60 * 60, secure=True, http_only=True, same_site="Lax")
+        req.context["current_CSRF"] = cookie_token
         self.config.redis_client.set(f"Session:{session_id};CSRF", cookie_token, ex=60 * 60)
         return cookie_token
 
     def process_request(self, req, resp):
-        session_id = req.context["session_id"]
+        session_id = req.context.get("session_id")
         if not session_id:
             raise falcon.HTTPInternalServerError()
         req.context['CSRF-Valid'] = False
         if req.method in ('POST', 'PUT', 'DELETE', 'PATCH'):
-            cookie_token = req.get_cookie("CSRF-Token")
+            cookie_token = req.get_cookie_values("CSRF-Token")
+            if cookie_token:
+                cookie_token = cookie_token[0]
             form_token = req.media.get("CSRF-Token") if req.media else None
             if form_token and hmac.compare_digest(cookie_token, form_token):
                 redis_token = self.config.redis_client.get(f"Session:{session_id};CSRF")
@@ -47,8 +50,9 @@ class SessionMiddleware:
         self.config = config
 
     def process_request(self, req, resp):
-        session = req.get_cookie("session")
+        session = req.get_cookie_values("session")
         if session:
+            session = session[0]
             if self.config.redis_client.get("Session:" + session) == "valid":
                 req.context["session_id"] = session
         else:
